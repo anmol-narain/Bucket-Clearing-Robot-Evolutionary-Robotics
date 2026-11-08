@@ -1,0 +1,30 @@
+# config.yaml
+arena:
+  width: 2.0                  # Default 2.0 m x 2.0 m
+  height: 2.0
+  gap_width: 0.30             # Default 0.30 m wide, one centered on each of the 4 sides
+  wall_thickness: 0.05        # Outer wall thickness (m)
+  light_pos: [0.0, 2.0]       # Top-left corner (x=0, y=2.0 in Box2D coordinates)
+  t_wall:
+    bar_length: 0.80          # Horizontal top bar of T-wall (m)
+    stem_length: 0.50         # Vertical stem of T-wall (m)
+    thickness: 0.05           # Thickness of T-wall segments (m)
+
+buckets:
+  count_range: [3, 7]         # Random N in [3, 7] per episode
+  radius: 0.05                # Circular, 0.05 m radius
+  density: 0.5                # Light enough to be pushed by the robot
+  friction: 0.3
+  linear_damping: 5.0         # Simulates floor friction so pushed buckets don't slide forever
+
+robot:
+  radius: 0.08                # Circular, 0.08 m radius
+  v_max: 0.5                  # Max wheel linear speed (m/s)
+  density: 2.0                # Heavier than buckets for stable pushing
+  friction: 0.3
+  motor_noise_std: 0.02       # Realistic actuator noise
+
+simulation:
+  dt: 0.02                    # 50 Hz physics timestep (fast and stable)
+  max_time: 60.0              # Fixed 60 s episode limit
+  ppm: 300                    # Pixels per meter (for Pygame rendering: 2m = 600px)
