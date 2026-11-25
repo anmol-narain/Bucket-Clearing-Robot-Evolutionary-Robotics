@@ -1,6 +1,6 @@
 """
 2D Arena Skeleton with Sensors, Light Shadowing, Custom Robot Spawn,
-and Option B (Front-Cone Bucket Camera).
+and (Front-Cone Bucket Camera).
 """
 
 import math
@@ -77,6 +77,11 @@ class BucketArena:
         self._build_outer_walls_with_gaps()
         self._build_t_wall()
         self._spawn_entities(robot_pose=robot_pose)
+
+        # Here we will track these respective times for our fitness function
+        self.time_moving_bucket = 0.0   # s: seconds pushing a moving bucket
+        self.time_touching_wall = 0.0   # w: seconds in contact with any wall
+        self.time_outside_arena = 0.0   # o: seconds spent outside the 2m x 2m bounds
 
     def _add_wall_box(self, cx: float, cy: float, half_w: float, half_h: float, tag: str = "wall"):
         body = self.world.CreateStaticBody(position=(cx, cy))
@@ -223,6 +228,34 @@ class BucketArena:
         self.robot_body.angularVelocity = omega
 
         self.world.Step(self.dt, 6, 2)
+
+        # Here we can Inspect active Box2D contacts with the robot body
+        touching_wall = False
+        moving_bucket = False
+        for edge in self.robot_body.contacts:
+            if not edge.contact.touching:
+                continue
+            other = edge.other
+            other_type = other.userData.get("type") if other.userData else None
+
+            if other_type == "wall":
+                touching_wall = True
+            elif other_type == "bucket":
+                # Only count 's' if the bucket is actually moving (> 0.02 m/s)
+                # This prevents the exploit of touching a bucket without moving it
+                if other.linearVelocity.length > 0.02:
+                    moving_bucket = True
+
+        if touching_wall:
+            self.time_touching_wall += self.dt
+        if moving_bucket:
+            self.time_moving_bucket += self.dt
+
+        rx, ry = self.robot_body.position
+        if rx < 0.0 or rx > self.W or ry < 0.0 or ry > self.H:
+            self.robot_left_arena = True
+            self.time_outside_arena += self.dt
+
         self.time_elapsed += self.dt
 
         remaining = []
@@ -235,11 +268,7 @@ class BucketArena:
                 remaining.append(b)
         self.bucket_bodies = remaining
 
-        rx, ry = self.robot_body.position
-        if rx < 0.0 or rx > self.W or ry < 0.0 or ry > self.H:
-            self.robot_left_arena = True
-
-        return self.time_elapsed >= self.max_time or len(self.bucket_bodies) == 0 or self.robot_left_arena
+        return self.time_elapsed >= self.max_time or len(self.bucket_bodies) == 0
 
 
 class RobotSensors:
@@ -385,10 +414,10 @@ class PygameRenderer:
         for event in self.pygame.event.get():
             if event.type == self.pygame.QUIT:
                 return False
+
             elif event.type == self.pygame.KEYDOWN and event.key == self.pygame.K_r:
                 self.arena.reset(robot_pose=None)
-                sensor_vec = self.sensors.read()  # Refresh rays & HUD immediately for the new spawn
-
+                sensor_vec = self.sensors.read()
         self.screen.fill((40, 40, 45))
         # Draw precomputed light & shadow floor
         self.screen.blit(self.light_surface, (self.margin_px, self.margin_px))
