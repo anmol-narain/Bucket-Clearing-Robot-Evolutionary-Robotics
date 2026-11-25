@@ -385,6 +385,9 @@ class PygameRenderer:
         for event in self.pygame.event.get():
             if event.type == self.pygame.QUIT:
                 return False
+            elif event.type == self.pygame.KEYDOWN and event.key == self.pygame.K_r:
+                self.arena.reset(robot_pose=None)
+                sensor_vec = self.sensors.read()  # Refresh rays & HUD immediately for the new spawn
 
         self.screen.fill((40, 40, 45))
         # Draw precomputed light & shadow floor
