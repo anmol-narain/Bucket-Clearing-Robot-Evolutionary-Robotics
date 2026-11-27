@@ -35,5 +35,5 @@ sensors:
 
 simulation:
   dt: 0.02                    # 50 Hz physics timestep (fast and stable)
-  max_time: 60.0              # Fixed 60 s episode limit
+  max_time: 30.0              # Fixed 60 s episode limit
   ppm: 300                    # Pixels per meter (for Pygame rendering: 2m = 600px)
