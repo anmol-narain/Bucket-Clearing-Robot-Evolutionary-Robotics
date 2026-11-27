@@ -24,6 +24,15 @@ robot:
   friction: 0.3
   motor_noise_std: 0.02       # Realistic actuator noise
 
+sensors:
+  ir_range: 0.50
+  ir_noise_std: 0.02
+  light_noise_std: 0.01
+  shadow_factor: 0.15         # Brightness multiplier behind/inside the T-wall
+  camera_fov_deg: 60.0
+  camera_range: 1.20
+  camera_noise_std: 0.02
+
 simulation:
   dt: 0.02                    # 50 Hz physics timestep (fast and stable)
   max_time: 60.0              # Fixed 60 s episode limit
