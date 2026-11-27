@@ -7,6 +7,7 @@ from selection import selection
 from mutation import mutate
 
 
+EVOLUTION_SEED = 42  # Change this to select a different evolution run.
 population_size = 20
 Generations = 30
 mu = 5                              # number of best individuals kept unchanged (elites)
@@ -16,7 +17,9 @@ episodes_per_eval = 3               # arena layouts each robot is tested on per 
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
-rng = np.random.default_rng()
+# ANN initialization, parent selection, and mutation use NumPy's global RNG.
+np.random.seed(EVOLUTION_SEED)
+rng = np.random.default_rng(EVOLUTION_SEED)
 population = [ANN() for _ in range(population_size)]
 
 History = []
