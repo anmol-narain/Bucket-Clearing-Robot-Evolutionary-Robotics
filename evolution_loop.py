@@ -1,44 +1,59 @@
 import numpy as np
+import yaml
 import matplotlib.pyplot as plt
 from ann import ANN
-from fitness import get_fitness
-from crossover import crossover
+from fitness import evaluate_individual
 from selection import selection
 from mutation import mutate
 
 
-population_size = 20 
+population_size = 20
 Generations = 100
+mu = 5                              # number of best individuals kept unchanged (elites)
+lambda_ = population_size - mu      # number of children made by crossover each generation
+episodes_per_eval = 3               # arena layouts each robot is tested on per generation
 
-population =  [ANN() for _ in range(population_size )]
+with open("config.yaml") as f:
+    config = yaml.safe_load(f)
+
+rng = np.random.default_rng()
+population = [ANN() for _ in range(population_size)]
 
 History = []
+Best_ANN = None
+best_fitness_ever = -np.inf
+
+plt.ion()
 
 # loop over generations
 for generation in range(Generations):
-    #Fitness = np.array 
+    # same seeds for every individual this generation, so the comparison is fair
+    episode_seeds = rng.integers(0, 1_000_000, size=episodes_per_eval).tolist()
+
     fitness = np.zeros(len(population))
+    for i, individual in enumerate(population):
+        fitness[i], _ = evaluate_individual(individual, config, episode_seeds)
 
-    for i, individual in enumerate(ANN):
-        fitness[i] = get_fitness(individual)
+    # Store the best ANN seen so far
+    best_idx = int(np.argmax(fitness))
+    if fitness[best_idx] > best_fitness_ever:
+        best_fitness_ever = fitness[best_idx]
+        Best_ANN = ANN()
+        Best_ANN.weights = population[best_idx].weights.copy()
 
-    
+    # for new generation: mu elites followed by lambda_ crossover children
+    new_generation = selection(fitness, population, mu, lambda_)
 
-    # Store the best ANN for this generation
-    Best_ANN = ANN[np.argmax(fitness)]
+    # Mutate only the children so the elites survive unchanged
+    for child in new_generation[mu:]:
+        child.weights = mutate(child.weights)
 
-    # for new generation
-    new_generation = crossover(selection(population, fitness))
-
-    # Mutate the new generation
-    new_generation = mutate(new_generation)
-
-    print(f"Generation {generation}:avg = {fitness.mean():.3f}, Best Fitness = {fitness.max():.3f}")
+    print(f"Generation {generation}: avg = {fitness.mean():.3f}, Best Fitness = {fitness.max():.3f}")
 
     # append the information to the history
     History.append([generation, fitness.mean(), fitness.max()])
 
-    #PLoting
+    # Plotting
     h = np.array(History)
     plt.clf()
     plt.plot(h[:, 0], h[:, 1], label='Average Fitness')
@@ -49,16 +64,16 @@ for generation in range(Generations):
     plt.legend()
     plt.pause(0.01)
 
-    # muteted children becomes the new population for the next round
-    ANN = new_generation
+    # mutated children + elites become the new population for the next round
+    population = new_generation
 
 # Endloop
 
-# saving the histopry ion CSV file
-np.savetxt('fitness_history.csv', np.array(History), delimiter=",",header = "gen,avg,best", comments="")
+# saving the history in a CSV file
+np.savetxt('fitness_history.csv', np.array(History), delimiter=",", header="gen,avg,best", comments="")
 
-# saving the best ANN model 
+# saving the best ANN model
 np.save('best_ann_model.npy', Best_ANN.weights)
 
+plt.ioff()
 plt.show()
-

@@ -1,6 +1,5 @@
 import numpy as np
-from src.simulator.arena import BucketArena
-from src.simulator.sensors import RobotSensors
+from test_arena2 import BucketArena, RobotSensors
 
 
 def compute_episode_fitness(
