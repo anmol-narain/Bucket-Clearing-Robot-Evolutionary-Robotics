@@ -8,7 +8,7 @@ from mutation import mutate
 
 
 population_size = 20
-Generations = 100
+Generations = 30
 mu = 5                              # number of best individuals kept unchanged (elites)
 lambda_ = population_size - mu      # number of children made by crossover each generation
 episodes_per_eval = 3               # arena layouts each robot is tested on per generation
@@ -31,9 +31,11 @@ for generation in range(Generations):
     episode_seeds = rng.integers(0, 1_000_000, size=episodes_per_eval).tolist()
 
     fitness = np.zeros(len(population))
+    buckets_cleared = np.zeros(len(population))
     for i, individual in enumerate(population):
-        fitness[i], _ = evaluate_individual(individual, config, episode_seeds)
-
+        fitness[i], episodes = evaluate_individual(individual, config, episode_seeds)
+        buckets_cleared[i] = np.mean([episode["buckets_out"] for episode in episodes])
+        print(f"individual {i} evaluated")
     # Store the best ANN seen so far
     best_idx = int(np.argmax(fitness))
     if fitness[best_idx] > best_fitness_ever:
@@ -48,29 +50,38 @@ for generation in range(Generations):
     for child in new_generation[mu:]:
         child.weights = mutate(child.weights)
 
-    print(f"Generation {generation}: avg = {fitness.mean():.3f}, Best Fitness = {fitness.max():.3f}")
+    print(
+        f"Generation {generation}: avg fitness = {fitness.mean():.6g}, "
+        f"best fitness = {fitness[best_idx]:.6g}, "
+        f"buckets cleared per episode: population avg = {buckets_cleared.mean():.3f}, "
+        f"top-scoring controller = {buckets_cleared[best_idx]:.3f}"
+    )
 
     # append the information to the history
-    History.append([generation, fitness.mean(), fitness.max()])
-
-    # Plotting
-    h = np.array(History)
-    plt.clf()
-    plt.plot(h[:, 0], h[:, 1], label='Average Fitness')
-    plt.plot(h[:, 0], h[:, 2], label='Best Fitness')
-    plt.xlabel('Generation')
-    plt.ylabel('Fitness')
-    plt.title('Fitness over Generations')
-    plt.legend()
-    plt.pause(0.01)
+    History.append([
+        generation, fitness.mean(), fitness[best_idx],
+        buckets_cleared.mean(), buckets_cleared[best_idx],
+    ])
 
     # mutated children + elites become the new population for the next round
     population = new_generation
 
 # Endloop
-
+# Plotting
+h = np.array(History)
+plt.clf()
+plt.plot(h[:, 0], h[:, 1], label='Average Fitness')
+plt.plot(h[:, 0], h[:, 2], label='Best Fitness')
+plt.xlabel('Generation')
+plt.ylabel('Fitness')
+plt.title('Fitness over Generations')
+plt.legend()
+plt.pause(0.01)
 # saving the history in a CSV file
-np.savetxt('fitness_history.csv', np.array(History), delimiter=",", header="gen,avg,best", comments="")
+np.savetxt(
+    'fitness_history.csv', h, delimiter=",",
+    header="gen,avg,best,avg_buckets,top_scoring_buckets", comments="",
+)
 
 # saving the best ANN model
 np.save('best_ann_model.npy', Best_ANN.weights)

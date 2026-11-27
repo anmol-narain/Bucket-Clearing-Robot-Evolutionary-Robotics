@@ -82,6 +82,7 @@ class BucketArena:
         self.time_moving_bucket = 0.0   # s: seconds pushing a moving bucket
         self.time_touching_wall = 0.0   # w: seconds in contact with any wall
         self.time_outside_arena = 0.0   # o: seconds spent outside the 2m x 2m bounds
+        self.time_idle = 0.0
 
     def _add_wall_box(self, cx: float, cy: float, half_w: float, half_h: float, tag: str = "wall"):
         body = self.world.CreateStaticBody(position=(cx, cy))
@@ -228,6 +229,12 @@ class BucketArena:
         self.robot_body.angularVelocity = omega
 
         self.world.Step(self.dt, 6, 2)
+
+        # Compare translation and turning in m/s to filter out small motor jitter.
+        linear_speed = self.robot_body.linearVelocity.length
+        turning_speed = abs(self.robot_body.angularVelocity) * wheelbase / 2.0
+        if max(linear_speed, turning_speed) < 0.02:
+            self.time_idle += self.dt
 
         # Here we can Inspect active Box2D contacts with the robot body
         touching_wall = False

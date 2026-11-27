@@ -10,40 +10,45 @@ def compute_episode_fitness(
     time_outside_arena: float,
     robot_left_arena: bool,
     max_time: float = 60.0,
+    *,
+    time_idle: float = 0.0,
+    bucket_approach: float = 0.0,
 ) -> float:
     """
     Compute the scalar fitness score for a single episode.
 
     Formula:
-        F = 5.0 * (n / N) + 0.5 * (s / T) - 1.0 * (w / T) - penalty_outside
+        F = 5.0 * (n / N) + 0.5 * (s / T) + 0.5 * a
+            - (w / T) - (i / T) - penalty_outside
 
     Where:
         n : buckets pushed outside the arena
         N : total buckets spawned in the episode (normalises across N in [3, 7])
         s : seconds spent actively moving a bucket (shaping term, capped below 1 bucket)
         w : seconds spent touching a wall (discourages wall-hugging / getting stuck)
+        i : seconds spent nearly stationary
+        a : normalized improvement in closest approach to a bucket, in [0, 1]
         T : episode time limit (default 60s)
         penalty_outside : heavy penalty if the robot itself exits the arena
     """
-    if total_buckets <= 0:
-        return 0.0
-
     # Primary objective: fraction of buckets cleared [0.0, 5.0]
-    bucket_term = 5.0 * (buckets_out / total_buckets)
+    bucket_term = 5.0 * (buckets_out / total_buckets) if total_buckets > 0 else 0.0
 
     # Shaping term: reward actively moving buckets [0.0, 0.5]
-    # Weighted at 0.5 so farming 's' for 60s never beats clearing even 1 of 7 buckets (5/7 = 0.71)
+    # The pushing term alone is smaller than the reward for clearing one of seven buckets.
     push_term = 0.5 * (time_moving_bucket / max_time)
+    approach_term = 0.5 * bucket_approach
 
     # Penalty for rubbing/crashing into walls [0.0, 1.0]
     wall_penalty = 1.0 * (time_touching_wall / max_time)
+    idle_penalty = time_idle / max_time
 
     # Penalty for leaving the arena (robot must stay inside)
     outside_penalty = 0.0
     if robot_left_arena or time_outside_arena > 0.0:
         outside_penalty = 2.0 + 3.0 * (time_outside_arena / max_time)
 
-    return float(bucket_term + push_term - wall_penalty - outside_penalty)
+    return float(bucket_term + push_term + approach_term - wall_penalty - idle_penalty - outside_penalty)
 
 
 def run_episode(ann, config: dict, seed: int) -> dict:
@@ -51,12 +56,29 @@ def run_episode(ann, config: dict, seed: int) -> dict:
     arena = BucketArena(config, seed=seed, robot_pose=None)
     sensors = RobotSensors(arena)
 
+    def nearest_bucket_distance():
+        robot_position = arena.robot_body.position
+        return min(
+            ((bucket.position - robot_position).length for bucket in arena.bucket_bodies),
+            default=float("inf"),
+        )
+
+    initial_distance = nearest_bucket_distance()
+    closest_distance = initial_distance
     done = False
     while not done:
         obs = sensors.read()               # 12-element normalized sensor vector
         v_left, v_right = ann.forward(obs) # ANN returns 2 wheel speeds in [-v_max, v_max]
         done = arena.step(float(v_left), float(v_right))
+        closest_distance = min(closest_distance, nearest_bucket_distance())
 
+    # Score the episode's best approach once, so repeated passes cannot farm points.
+    contact_distance = config["robot"]["radius"] + config["buckets"]["radius"]
+    initial_gap = initial_distance - contact_distance
+    bucket_approach = (
+        float(np.clip((initial_distance - closest_distance) / initial_gap, 0.0, 1.0))
+        if 0.0 < initial_gap < float("inf") else 0.0
+    )
     fitness = compute_episode_fitness(
         buckets_out=arena.buckets_collected,
         total_buckets=arena.initial_bucket_count,
@@ -65,6 +87,8 @@ def run_episode(ann, config: dict, seed: int) -> dict:
         time_outside_arena=arena.time_outside_arena,
         robot_left_arena=arena.robot_left_arena,
         max_time=arena.max_time,
+        time_idle=arena.time_idle,
+        bucket_approach=bucket_approach,
     )
 
     return {
@@ -75,6 +99,8 @@ def run_episode(ann, config: dict, seed: int) -> dict:
         "time_elapsed": arena.time_elapsed,
         "time_moving_bucket": arena.time_moving_bucket,
         "time_touching_wall": arena.time_touching_wall,
+        "time_idle": arena.time_idle,
+        "bucket_approach": bucket_approach,
         "robot_left_arena": arena.robot_left_arena,
     }
 

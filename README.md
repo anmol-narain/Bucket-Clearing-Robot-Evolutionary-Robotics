@@ -10,7 +10,7 @@ This project evolves an artificial neural network (ANN) that controls a simple m
 ## Fitness function
 
 ```text
-fitness = 5 * (n / N) + s / 60 - w / 60 - max(5, o) / 55
+fitness = 5 * (n / N) + 0.5 * (s / T) + 0.5 * a - w / T - i / T - outside_penalty
 ```
 
 | Variable | Meaning |
@@ -18,10 +18,13 @@ fitness = 5 * (n / N) + s / 60 - w / 60 - max(5, o) / 55
 | `n` | Number of buckets pushed outside the arena |
 | `N` | Total number of buckets in the arena |
 | `s` | Seconds the robot spends moving a bucket |
+| `a` | Fraction of the initial gap to the nearest bucket that the robot closes at its closest approach, capped at 1 |
 | `w` | Seconds the robot spends touching a wall |
+| `i` | Seconds when both the robot's linear speed and the speed at its rim from turning are below 0.02 m/s |
 | `o` | Seconds the robot spends outside the arena |
+| `T` | Episode time limit (60 seconds by default) |
 
-Dividing by `N` normalizes the bucket-clearing reward across arenas with different bucket counts. The group identified idling or spinning in place, receiving credit for touching a bucket without moving it, and clearing one bucket before stopping as behaviors to check during evaluation. The written formula gives an idle robot with all counters at zero a fitness of `-5/55`, while the notes say zero. Confirm the intended outside-arena penalty before implementation.
+Dividing by `N` normalizes the bucket-clearing reward across arenas with different bucket counts. The outside penalty is zero if the robot stays inside and `2 + 3 * (o / T)` if it exits. A full episode spent idle incurs a 1-point penalty. The group identified spinning in place, receiving credit for touching a bucket without moving it, and clearing one bucket before stopping as behaviors to check during evaluation.
 
 ## Evolutionary operators
 
